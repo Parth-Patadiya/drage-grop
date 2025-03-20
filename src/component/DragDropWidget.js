@@ -12,6 +12,7 @@ export default function Widget() {
 
   useEffect(() => {
     monday.listen("context", (res) => {
+      console.log("Context Data:", res.data);  // ✅ Debugging context
       setContext(res.data);
     });
   }, []);
@@ -21,23 +22,17 @@ export default function Widget() {
       monday.api(`
         query {
           boards(ids: ${context.boardId}) {
-            name 
-            items {
-              id 
-              name 
-              column_values {
-                id 
-                text 
-                value
-              }
-            }
+            id
+            name
           }
         }
       `).then((res) => {
-        setItems(res.data.boards[0].items);
-      });
+        if (res.data?.boards?.length) {
+          setContext((prev) => ({ ...prev, boardName: res.data.boards[0].name }));
+        }
+      }).catch((err) => console.error("Error fetching board name:", err));
     }
-  }, [context]);
+  }, [context?.boardId]);
 
   // Start Drag
   const handleDragStart = (file, columnId, itemId) => {
