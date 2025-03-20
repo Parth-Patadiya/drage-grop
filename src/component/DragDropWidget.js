@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useState } from "react";
 import mondaySdk from "monday-sdk-js";
 
@@ -9,72 +7,91 @@ export default function Widget() {
   const [context, setContext] = useState(null);
   const [items, setItems] = useState([]);
   const [draggedFile, setDraggedFile] = useState(null);
+  const [columns, setColumns] = useState({});
 
   useEffect(() => {
     monday.listen("context", (res) => {
-      console.log("Context Data:", res.data);  // ✅ Debugging context
+      console.log("Context Data:", res.data);
       setContext(res.data);
     });
   }, []);
 
   useEffect(() => {
     if (context?.boardId) {
-      monday.api(`
-        query {
-          boards(ids: ${context.boardId}) {
-            id
-            name
-          }
-        }
-      `).then((res) => {
-        console.log("Fetched board data:", res.data);  // ✅ Debugging board response
-        if (res.data?.boards?.length) {
-          setContext((prev) => ({ ...prev, boardName: res.data.boards[0].name }));
-        }
-      }).catch((err) => console.error("Error fetching board name:", err));
+      fetchBoardData(context.boardId);
     }
   }, [context?.boardId]);
-  
 
-  // Start Drag
+  // Fetch board details including columns and items
+  const fetchBoardData = async (boardId) => {
+    try {
+      const res = await monday.api(`
+        query {
+          boards(ids: ${boardId}) {
+            id
+            name
+            columns { id title }
+            items {
+              id
+              name
+              column_values { id value }
+            }
+          }
+        }
+      `);
+
+      const board = res.data?.boards[0];
+      setContext((prev) => ({ ...prev, boardName: board?.name }));
+      setColumns(
+        board?.columns.reduce((acc, col) => ({ ...acc, [col.title]: col.id }), {})
+      );
+      setItems(board?.items || []);
+    } catch (error) {
+      console.error("Error fetching board data:", error);
+    }
+  };
+
+  // Dragging starts
   const handleDragStart = (file, columnId, itemId) => {
     setDraggedFile({ file, columnId, itemId });
   };
 
-  // Drop into a new column
+  // Dropping file into another column
   const handleDrop = async (targetColumnId, itemId) => {
     if (!draggedFile || !context?.boardId) return;
 
-    // Update Monday.com API
-    await monday.api(`
-      mutation {
-        change_column_value(
-          board_id: ${context.boardId}, 
-          item_id: ${itemId}, 
-          column_id: "${targetColumnId}", 
-          value: "{\\"file\\": \\"${draggedFile.file}\\"}"
-        ) {
-          id
+    try {
+      await monday.api(`
+        mutation {
+          change_column_value(
+            board_id: ${context.boardId}, 
+            item_id: ${itemId}, 
+            column_id: "${targetColumnId}", 
+            value: "{\\"file\\": \\\"${draggedFile.file}\\\"}"
+          ) {
+            id
+          }
         }
-      }
-    `);
+      `);
 
-    // Update UI
-    setItems((prevItems) =>
-      prevItems.map((item) =>
-        item.id === itemId
-          ? {
-              ...item,
-              column_values: item.column_values.map((col) =>
-                col.id === targetColumnId
-                  ? { ...col, text: draggedFile.file }
-                  : col
-              ),
-            }
-          : item
-      )
-    );
-
+      // Update UI after dropping
+      setItems((prevItems) =>
+        prevItems.map((item) =>
+          item.id === itemId
+            ? {
+                ...item,
+                column_values: item.column_values.map((col) =>
+                  col.id === targetColumnId
+                    ? { ...col, value: draggedFile.file }
+                    : col
+                ),
+              }
+            : item
+        )
+      );
+    } catch (error) {
+      console.error("Error updating file:", error);
+    }
     setDraggedFile(null);
   };
 
@@ -87,54 +104,40 @@ export default function Widget() {
         <thead>
           <tr className="bg-gray-100">
             <th className="border p-2">Item Name</th>
-            <th className="border p-2">Column A</th>
-            <th className="border p-2">Column B</th>
+            {Object.keys(columns).map((colTitle) => (
+              <th key={columns[colTitle]} className="border p-2">{colTitle}</th>
+            ))}
           </tr>
         </thead>
         <tbody>
           {items.map((item) => (
             <tr key={item.id} className="border">
               <td className="border p-2">{item.name}</td>
+              {Object.keys(columns).map((colTitle) => {
+                const columnId = columns[colTitle];
+                const file = item.column_values.find((col) => col.id === columnId)?.value;
 
-              {/* Column A - Drag Source & Drop Target */}
-              <td
-                className="border p-2 min-h-[50px]"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => handleDrop("column_a_id", item.id)}
-              >
-                {item.column_values
-                  .filter((col) => col.id === "column_a_id")
-                  .map((file) => (
-                    <div
-                      key={file.id}
-                      draggable
-                      onDragStart={() => handleDragStart(file.text, "column_a_id", item.id)}
-                      className="p-2 bg-blue-100 shadow-md rounded-md cursor-pointer"
-                    >
-                      📄 {file.text}
-                    </div>
-                  ))}
-              </td>
-
-              {/* Column B - Drag Source & Drop Target */}
-              <td
-                className="border p-2 min-h-[50px]"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => handleDrop("column_b_id", item.id)}
-              >
-                {item.column_values
-                  .filter((col) => col.id === "column_b_id")
-                  .map((file) => (
-                    <div
-                      key={file.id}
-                      draggable
-                      onDragStart={() => handleDragStart(file.text, "column_b_id", item.id)}
-                      className="p-2 bg-green-100 shadow-md rounded-md cursor-pointer"
-                    >
-                      📄 {file.text}
-                    </div>
-                  ))}
-              </td>
+                return (
+                  <td
+                    key={columnId}
+                    className="border p-2 min-h-[50px]"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => handleDrop(columnId, item.id)}
+                  >
+                    {file ? (
+                      <div
+                        draggable
+                        onDragStart={() => handleDragStart(file, columnId, item.id)}
+                        className="p-2 bg-blue-100 shadow-md rounded-md cursor-pointer"
+                      >
+                        📄 {file}
+                      </div>
+                    ) : (
+                      <span className="text-gray-400">Drop Here</span>
+                    )}
+                  </td>
+                );
+              })}
             </tr>
           ))}
         </tbody>
