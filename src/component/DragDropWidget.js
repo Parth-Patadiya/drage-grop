@@ -5,6 +5,7 @@ const monday = mondaySdk();
 
 const DragDropWidget = () => {
   const [items, setItems] = useState([]);
+  const [boardId, setBoardId] = useState(null);
 
   useEffect(() => {
     monday.api(`
@@ -28,6 +29,7 @@ const DragDropWidget = () => {
       .then(res => {
         const board = res.data.boards[0];
         if (board && board.items_page) {
+          setBoardId(board.id);
           setItems(board.items_page.items);
         }
       })
@@ -55,7 +57,18 @@ const DragDropWidget = () => {
       setItems(updatedItems);
     }
 
-    // TODO: Add API call to sync order change with Monday.com
+    // API call to sync new position on Monday.com
+    if (boardId) {
+      monday.api(`
+        mutation {
+          move_item_to_group (item_id: ${draggedItemId}, group_id: "${targetItemId}") {
+            id
+          }
+        }
+      `)
+      .then(() => console.log("Item moved successfully!"))
+      .catch(err => console.error("Error updating position:", err));
+    }
   };
 
   return (
