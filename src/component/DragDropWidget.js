@@ -7,11 +7,29 @@ const DragDropWidget = () => {
   const [items, setItems] = useState([]);
 
   useEffect(() => {
-    monday.api(`query { boards(limit:1) { items { id, name, column_values { id, value, text } } } }`)
+    monday.api(`
+      query {
+        boards(limit: 1) {
+          id
+          name
+          items_page {
+            items {
+              id
+              name
+              column_values {
+                id
+                text
+              }
+            }
+          }
+        }
+      }
+    `)
       .then(res => {
-        setItems(res.data.boards[0].items);
-        console.log(res.data);
-        
+        const board = res.data.boards[0];
+        if (board && board.items_page) {
+          setItems(board.items_page.items);
+        }
       })
       .catch(err => console.error("Error fetching items:", err));
   }, []);
@@ -49,9 +67,9 @@ const DragDropWidget = () => {
           key={item.id} 
           className="border p-4 rounded-lg shadow cursor-grab" 
           draggable 
-          onDragStart={(e) => handleDragStart(e, item.id, item.column_values[0].id)}
+          onDragStart={(e) => handleDragStart(e, item.id, item.column_values[0]?.id || "")}
           onDragOver={(e) => e.preventDefault()}
-          onDrop={(e) => handleDrop(e, item.column_values[0].id)}
+          onDrop={(e) => handleDrop(e, item.column_values[0]?.id || "")}
         >
           <div className="p-2">
             <p className="text-sm font-medium">{item.name}</p>
