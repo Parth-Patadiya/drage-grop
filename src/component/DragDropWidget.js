@@ -5,7 +5,7 @@ import mondaySdk from "monday-sdk-js";
 
 const monday = mondaySdk();
 
-export default function DragDropWidget() {
+export default function Widget() {
   const [context, setContext] = useState(null);
   const [items, setItems] = useState([]);
   const [draggedFile, setDraggedFile] = useState(null);
@@ -39,21 +39,23 @@ export default function DragDropWidget() {
     }
   }, [context]);
 
-  const handleDragStart = (file) => {
-    setDraggedFile(file);
+  // Start Drag
+  const handleDragStart = (file, columnId, itemId) => {
+    setDraggedFile({ file, columnId, itemId });
   };
 
-  const handleDrop = async (targetGroup) => {
+  // Drop into a new column
+  const handleDrop = async (targetColumnId, itemId) => {
     if (!draggedFile || !context?.boardId) return;
 
-    // Simulate moving file to another column (update Monday.com)
+    // Update Monday.com API
     await monday.api(`
       mutation {
         change_column_value(
           board_id: ${context.boardId}, 
-          item_id: ${draggedFile.itemId}, 
-          column_id: "file_column_id", 
-          value: "{\\"group\\": \\"${targetGroup}\\"}"
+          item_id: ${itemId}, 
+          column_id: "${targetColumnId}", 
+          value: "{\\"file\\": \\"${draggedFile.file}\\"}"
         ) {
           id
         }
@@ -63,7 +65,16 @@ export default function DragDropWidget() {
     // Update UI
     setItems((prevItems) =>
       prevItems.map((item) =>
-        item.id === draggedFile.itemId ? { ...item, group: targetGroup } : item
+        item.id === itemId
+          ? {
+              ...item,
+              column_values: item.column_values.map((col) =>
+                col.id === targetColumnId
+                  ? { ...col, text: draggedFile.file }
+                  : col
+              ),
+            }
+          : item
       )
     );
 
@@ -72,64 +83,65 @@ export default function DragDropWidget() {
 
   return (
     <div className="p-4 bg-white shadow-md rounded-lg w-full">
-      <h1 className="text-lg text-yellow-300 font-bold">Monday.com File Drag & Drop</h1>
+      <h1 className="text-lg text-yellow-300 font-bold">Monday.com Table Drag & Drop</h1>
       <p className="text-gray-600">Board: {context?.boardName || "Loading..."}</p>
 
-      <div className="grid grid-cols-2 gap-4 mt-4">
-        {/* Column 1: Uploaded Files */}
-        <div
-          className="p-4 bg-gray-100 rounded-md min-h-[200px]"
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={() => handleDrop("Uploaded")}
-        >
-          <h2 className="text-md font-bold">Uploaded Files</h2>
-          {items
-            .filter((item) => !item.group || item.group === "Uploaded")
-            .map((item) =>
-              item.column_values
-                .filter((col) => col.id === "file_column_id" && col.value)
-                .map((file) => (
-                  <div
-                    key={file.id}
-                    draggable
-                    onDragStart={() =>
-                      handleDragStart({ itemId: item.id, fileName: file.text })
-                    }
-                    className="p-2 bg-white shadow-md rounded-md mt-2 cursor-pointer"
-                  >
-                    📄 {file.text}
-                  </div>
-                ))
-            )}
-        </div>
+      <table className="min-w-full bg-white border mt-4">
+        <thead>
+          <tr className="bg-gray-100">
+            <th className="border p-2">Item Name</th>
+            <th className="border p-2">Column A</th>
+            <th className="border p-2">Column B</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((item) => (
+            <tr key={item.id} className="border">
+              <td className="border p-2">{item.name}</td>
 
-        {/* Column 2: Processed Files */}
-        <div
-          className="p-4 bg-gray-200 rounded-md min-h-[200px]"
-          onDragOver={(e) => e.preventDefault()}
-          onDrop={() => handleDrop("Processed")}
-        >
-          <h2 className="text-md font-bold">Processed Files</h2>
-          {items
-            .filter((item) => item.group === "Processed")
-            .map((item) =>
-              item.column_values
-                .filter((col) => col.id === "file_column_id" && col.value)
-                .map((file) => (
-                  <div
-                    key={file.id}
-                    draggable
-                    onDragStart={() =>
-                      handleDragStart({ itemId: item.id, fileName: file.text })
-                    }
-                    className="p-2 bg-white shadow-md rounded-md mt-2 cursor-pointer"
-                  >
-                    📄 {file.text}
-                  </div>
-                ))
-            )}
-        </div>
-      </div>
+              {/* Column A - Drag Source & Drop Target */}
+              <td
+                className="border p-2 min-h-[50px]"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => handleDrop("column_a_id", item.id)}
+              >
+                {item.column_values
+                  .filter((col) => col.id === "column_a_id")
+                  .map((file) => (
+                    <div
+                      key={file.id}
+                      draggable
+                      onDragStart={() => handleDragStart(file.text, "column_a_id", item.id)}
+                      className="p-2 bg-blue-100 shadow-md rounded-md cursor-pointer"
+                    >
+                      📄 {file.text}
+                    </div>
+                  ))}
+              </td>
+
+              {/* Column B - Drag Source & Drop Target */}
+              <td
+                className="border p-2 min-h-[50px]"
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => handleDrop("column_b_id", item.id)}
+              >
+                {item.column_values
+                  .filter((col) => col.id === "column_b_id")
+                  .map((file) => (
+                    <div
+                      key={file.id}
+                      draggable
+                      onDragStart={() => handleDragStart(file.text, "column_b_id", item.id)}
+                      className="p-2 bg-green-100 shadow-md rounded-md cursor-pointer"
+                    >
+                      📄 {file.text}
+                    </div>
+                  ))}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
