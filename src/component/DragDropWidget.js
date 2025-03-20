@@ -19,7 +19,8 @@ export default function Widget() {
 
   useEffect(() => {
     if (context?.boardId) {
-      monday.api(`
+      monday
+        .api(`
         query {
           boards(ids: ${context.boardId}) {
             id
@@ -36,44 +37,52 @@ export default function Widget() {
             }
           }
         }
-      `).then((res) => {
-        console.log("Fetched board data:", res.data);
-        if (res.data?.boards?.length) {
-          setContext((prev) => ({ ...prev, boardName: res.data.boards[0].name }));
-          setItems(res.data.boards[0].items_page.items);
-        }
-      }).catch((err) => console.error("Error fetching board data:", err));
+      `)
+        .then((res) => {
+          console.log("Fetched board data:", res.data);
+          if (res.data?.boards?.length) {
+            setContext((prev) => ({ ...prev, boardName: res.data.boards[0].name }));
+            setItems(res.data.boards[0].items_page.items);
+          }
+        })
+        .catch((err) => console.error("Error fetching board items:", err));
     }
   }, [context?.boardId]);
 
+  // Start Drag
   const handleDragStart = (file, columnId, itemId) => {
     setDraggedFile({ file, columnId, itemId });
   };
 
+  // Drop into an existing column
   const handleDrop = async (targetColumnId, itemId) => {
     if (!draggedFile || !context?.boardId) return;
 
+    // Update Monday.com API
     await monday.api(`
       mutation {
         change_column_value(
-          board_id: ${context.boardId},
-          item_id: ${itemId},
-          column_id: "${targetColumnId}",
-          value: "{\\"file\\": \\\"${draggedFile.file}\\\"}"
+          board_id: ${context.boardId}, 
+          item_id: ${itemId}, 
+          column_id: "${targetColumnId}", 
+          value: "{\\"file\\": \\"${draggedFile.file}\\"}"
         ) {
           id
         }
       }
     `);
 
+    // Update UI by moving the file
     setItems((prevItems) =>
       prevItems.map((item) =>
         item.id === itemId
           ? {
               ...item,
               column_values: item.column_values.map((col) =>
-                col.id === targetColumnId
-                  ? { ...col, text: draggedFile.file }
+                col.id === draggedFile.columnId
+                  ? { ...col, text: "" } // Remove from old column
+                  : col.id === targetColumnId
+                  ? { ...col, text: draggedFile.file } // Add to new column
                   : col
               ),
             }
@@ -101,13 +110,15 @@ export default function Widget() {
           {items.map((item) => (
             <tr key={item.id} className="border">
               <td className="border p-2">{item.name}</td>
+
+              {/* Column A - Drag Source & Drop Target */}
               <td
                 className="border p-2 min-h-[50px]"
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => handleDrop("column_a_id", item.id)}
               >
                 {item.column_values
-                  .filter((col) => col.id === "column_a_id")
+                  .filter((col) => col.id === "column_a_id" && col.text)
                   .map((file) => (
                     <div
                       key={file.id}
@@ -119,13 +130,15 @@ export default function Widget() {
                     </div>
                   ))}
               </td>
+
+              {/* Column B - Drag Source & Drop Target */}
               <td
                 className="border p-2 min-h-[50px]"
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={() => handleDrop("column_b_id", item.id)}
               >
                 {item.column_values
-                  .filter((col) => col.id === "column_b_id")
+                  .filter((col) => col.id === "column_b_id" && col.text)
                   .map((file) => (
                     <div
                       key={file.id}
