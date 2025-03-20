@@ -27,12 +27,14 @@ export default function Widget() {
           }
         }
       `).then((res) => {
+        console.log("Fetched board data:", res.data);  // ✅ Debugging board response
         if (res.data?.boards?.length) {
           setContext((prev) => ({ ...prev, boardName: res.data.boards[0].name }));
         }
       }).catch((err) => console.error("Error fetching board name:", err));
     }
   }, [context?.boardId]);
+  
 
   // Start Drag
   const handleDragStart = (file, columnId, itemId) => {
