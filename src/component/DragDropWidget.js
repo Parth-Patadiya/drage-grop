@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import mondaySdk from "monday-sdk-js";
-import { Card, CardContent } from "@/components/ui/card";
 
 const monday = mondaySdk();
 
@@ -36,11 +35,11 @@ const DragDropWidget = () => {
   return (
     <div className="p-4 grid grid-cols-2 gap-4">
       {items.map((item) => (
-        <Card key={item.id} draggable onDragStart={(e) => handleDragStart(e, item.id, item.column_values[0].id)}>
-          <CardContent className="p-2 cursor-grab">
+        <div key={item.id} className="border p-4 rounded-lg shadow cursor-grab" draggable onDragStart={(e) => handleDragStart(e, item.id, item.column_values[0].id)}>
+          <div className="p-2">
             <p className="text-sm font-medium">{item.name}</p>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ))}
       <div className="p-4 bg-gray-200 rounded-md" onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, "new_column_id")}>Drop Here</div>
     </div>
