@@ -1,171 +1,50 @@
-"use client";
-
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import mondaySdk from "monday-sdk-js";
+import { Card, CardContent } from "@/components/ui/card";
 
 const monday = mondaySdk();
 
-export default function Widget() {
-  const [context, setContext] = useState(null);
-  const [boardName, setBoardName] = useState("Loading...");
+const DragDropWidget = () => {
   const [items, setItems] = useState([]);
-  const [draggedFile, setDraggedFile] = useState(null);
 
-  // Fetch context (board ID)
   useEffect(() => {
-    monday.listen("context", (res) => {
-      console.log("Context Data:", res.data);
-      setContext(res.data);
-    });
+    monday.api(`query { boards(limit:1) { items { id, name, column_values { id, value, text } } } }`)
+      .then(res => {
+        setItems(res.data.boards[0].items);
+      })
+      .catch(err => console.error("Error fetching items:", err));
   }, []);
 
-  // Fetch board details (name, items, positions)
-  useEffect(() => {
-    if (context?.boardId) {
-      monday
-        .api(
-          `
-            query {
-              boards(ids: ${context.boardId}) {
-                id
-                name
-                items_page {
-                  items {
-                    id
-                    name
-                    pos
-                    column_values {
-                      id
-                      title
-                      text
-                      value
-                    }
-                  }
-                }
-              }
-            }
-          `
-        )
-        .then((res) => {
-          console.log("Fetched board data:", res.data);
-          if (res.data?.boards?.length) {
-            setBoardName(res.data.boards[0].name);
-            setItems(res.data.boards[0].items);
-          }
-        })
-        .catch((err) => console.error("Error fetching board data:", err));
-    }
-  }, [context?.boardId]);
-
-  // Start Drag
-  const handleDragStart = (file, columnId, itemId) => {
-    setDraggedFile({ file, columnId, itemId });
+  const handleDragStart = (e, itemId, columnId) => {
+    e.dataTransfer.setData("itemId", itemId);
+    e.dataTransfer.setData("columnId", columnId);
   };
 
-  // Drop into a new column
-  const handleDrop = async (targetColumnId, itemId) => {
-    if (!draggedFile || !context?.boardId) return;
-
-    // Update Monday.com API
-    await monday.api(`
-      mutation {
-        change_column_value(
-          board_id: ${context.boardId}, 
-          item_id: ${itemId}, 
-          column_id: "${targetColumnId}", 
-          value: "{\\"file\\": \\"${draggedFile.file}\\"}"
-        ) {
-          id
-        }
-      }
-    `);
-
-    // Update UI
-    setItems((prevItems) =>
-      prevItems.map((item) =>
-        item.id === itemId
-          ? {
-              ...item,
-              column_values: item.column_values.map((col) =>
-                col.id === targetColumnId
-                  ? { ...col, text: draggedFile.file }
-                  : col
-              ),
-            }
-          : item
-      )
-    );
-
-    setDraggedFile(null);
+  const handleDrop = (e, newColumnId) => {
+    const itemId = e.dataTransfer.getData("itemId");
+    const oldColumnId = e.dataTransfer.getData("columnId");
+    
+    if (oldColumnId !== newColumnId) {
+      monday.api(`mutation { change_column_value(board_id: 123456, item_id: ${itemId}, column_id: "${newColumnId}", value: "Moved") { id } }`)
+        .then(() => {
+          setItems(prevItems => prevItems.map(item => item.id === itemId ? { ...item, column_values: item.column_values.map(col => col.id === newColumnId ? { ...col, text: "Moved" } : col) } : item));
+        })
+        .catch(err => console.error("Error updating column:", err));
+    }
   };
 
   return (
-    <div className="p-4 bg-white shadow-md rounded-lg w-full">
-      <h1 className="text-lg text-yellow-300 font-bold">
-        Monday.com Table Drag & Drop
-      </h1>
-      <p className="text-gray-600">Board: {boardName}</p>
-
-      <table className="min-w-full bg-white border mt-4">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="border p-2">Item Name</th>
-            <th className="border p-2">Column A</th>
-            <th className="border p-2">Column B</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item) => (
-            <tr key={item.id} className="border">
-              <td className="border p-2">{item.name}</td>
-
-              {/* Column A - Drag Source & Drop Target */}
-              <td
-                className="border p-2 min-h-[50px]"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => handleDrop("column_a_id", item.id)}
-              >
-                {item.column_values
-                  .filter((col) => col.id === "column_a_id")
-                  .map((file) => (
-                    <div
-                      key={file.id}
-                      draggable
-                      onDragStart={() =>
-                        handleDragStart(file.text, "column_a_id", item.id)
-                      }
-                      className="p-2 bg-blue-100 shadow-md rounded-md cursor-pointer"
-                    >
-                      📄 {file.text || "No File"}
-                    </div>
-                  ))}
-              </td>
-
-              {/* Column B - Drag Source & Drop Target */}
-              <td
-                className="border p-2 min-h-[50px]"
-                onDragOver={(e) => e.preventDefault()}
-                onDrop={() => handleDrop("column_b_id", item.id)}
-              >
-                {item.column_values
-                  .filter((col) => col.id === "column_b_id")
-                  .map((file) => (
-                    <div
-                      key={file.id}
-                      draggable
-                      onDragStart={() =>
-                        handleDragStart(file.text, "column_b_id", item.id)
-                      }
-                      className="p-2 bg-green-100 shadow-md rounded-md cursor-pointer"
-                    >
-                      📄 {file.text || "No File"}
-                    </div>
-                  ))}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="p-4 grid grid-cols-2 gap-4">
+      {items.map((item) => (
+        <Card key={item.id} draggable onDragStart={(e) => handleDragStart(e, item.id, item.column_values[0].id)}>
+          <CardContent className="p-2 cursor-grab">
+            <p className="text-sm font-medium">{item.name}</p>
+          </CardContent>
+        </Card>
+      ))}
+      <div className="p-4 bg-gray-200 rounded-md" onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, "new_column_id")}>Drop Here</div>
     </div>
   );
-}
+};
+
+export default DragDropWidget;
