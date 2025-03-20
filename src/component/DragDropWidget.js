@@ -23,25 +23,29 @@ export default function Widget() {
   useEffect(() => {
     if (context?.boardId) {
       monday
-        .api(`
-          query {
-            boards(ids: ${context.boardId}) {
-              id
-              name
-              items {
+        .api(
+          `
+            query {
+              boards(ids: ${context.boardId}) {
                 id
                 name
-                pos
-                column_values {
-                  id
-                  title
-                  text
-                  value
+                items_page {
+                  items {
+                    id
+                    name
+                    pos
+                    column_values {
+                      id
+                      title
+                      text
+                      value
+                    }
+                  }
                 }
               }
             }
-          }
-        `)
+          `
+        )
         .then((res) => {
           console.log("Fetched board data:", res.data);
           if (res.data?.boards?.length) {
@@ -97,7 +101,9 @@ export default function Widget() {
 
   return (
     <div className="p-4 bg-white shadow-md rounded-lg w-full">
-      <h1 className="text-lg text-yellow-300 font-bold">Monday.com Table Drag & Drop</h1>
+      <h1 className="text-lg text-yellow-300 font-bold">
+        Monday.com Table Drag & Drop
+      </h1>
       <p className="text-gray-600">Board: {boardName}</p>
 
       <table className="min-w-full bg-white border mt-4">
@@ -125,7 +131,9 @@ export default function Widget() {
                     <div
                       key={file.id}
                       draggable
-                      onDragStart={() => handleDragStart(file.text, "column_a_id", item.id)}
+                      onDragStart={() =>
+                        handleDragStart(file.text, "column_a_id", item.id)
+                      }
                       className="p-2 bg-blue-100 shadow-md rounded-md cursor-pointer"
                     >
                       📄 {file.text || "No File"}
@@ -145,7 +153,9 @@ export default function Widget() {
                     <div
                       key={file.id}
                       draggable
-                      onDragStart={() => handleDragStart(file.text, "column_b_id", item.id)}
+                      onDragStart={() =>
+                        handleDragStart(file.text, "column_b_id", item.id)
+                      }
                       className="p-2 bg-green-100 shadow-md rounded-md cursor-pointer"
                     >
                       📄 {file.text || "No File"}
