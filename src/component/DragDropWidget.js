@@ -1,58 +1,135 @@
-import React, { useState, useEffect } from "react";
+"use client";
+
+import { useEffect, useState } from "react";
 import mondaySdk from "monday-sdk-js";
-import { DndContext, closestCenter } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import SortableItem from "./SortableItem";
 
 const monday = mondaySdk();
 
-const DragDropWidget = () => {
-  const [boardData, setBoardData] = useState([]);
-  const [columns, setColumns] = useState([]);
-  const [selectedBoardId, setSelectedBoardId] = useState(null);
+export default function DragDropWidget() {
+  const [context, setContext] = useState(null);
+  const [items, setItems] = useState([]);
+  const [draggedFile, setDraggedFile] = useState(null);
 
   useEffect(() => {
-    fetchBoardData();
+    monday.listen("context", (res) => {
+      setContext(res.data);
+    });
   }, []);
 
-  const fetchBoardData = async () => {
-    monday.api(`query { boards(limit: 1) { id name columns { id title } items { id name column_values { id text } } } }`)
-      .then((res) => {
-        const board = res.data.boards[0];
-        setSelectedBoardId(board.id);
-        setColumns(board.columns);
-        setBoardData(board.items);
+  useEffect(() => {
+    if (context?.boardId) {
+      monday.api(`
+        query {
+          boards(ids: ${context.boardId}) {
+            name 
+            items {
+              id 
+              name 
+              column_values {
+                id 
+                text 
+                value
+              }
+            }
+          }
+        }
+      `).then((res) => {
+        setItems(res.data.boards[0].items);
       });
+    }
+  }, [context]);
+
+  const handleDragStart = (file) => {
+    setDraggedFile(file);
   };
 
-  const handleDragEnd = async (event) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
+  const handleDrop = async (targetGroup) => {
+    if (!draggedFile || !context?.boardId) return;
 
-    const updatedItems = boardData.map((item) => {
-      if (item.id === active.id) {
-        return { ...item, column_values: item.column_values.map(col => col.id === over.id ? { ...col, text: over.id } : col) };
+    // Simulate moving file to another column (update Monday.com)
+    await monday.api(`
+      mutation {
+        change_column_value(
+          board_id: ${context.boardId}, 
+          item_id: ${draggedFile.itemId}, 
+          column_id: "file_column_id", 
+          value: "{\\"group\\": \\"${targetGroup}\\"}"
+        ) {
+          id
+        }
       }
-      return item;
-    });
+    `);
 
-    setBoardData(updatedItems);
+    // Update UI
+    setItems((prevItems) =>
+      prevItems.map((item) =>
+        item.id === draggedFile.itemId ? { ...item, group: targetGroup } : item
+      )
+    );
 
-    await monday.api(`mutation { change_column_value (board_id: ${selectedBoardId}, item_id: ${active.id}, column_id: "${over.id}", value: "${over.id}") { id } }`);
+    setDraggedFile(null);
   };
 
   return (
-    <div className="p-4 w-full max-w-lg mx-auto">
-      <h2 className="text-lg font-bold mb-4">Drag & Drop Files</h2>
-      <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={boardData.map(item => item.id)} strategy={verticalListSortingStrategy}>
-          {boardData.map((item) => (
-            <SortableItem key={item.id} id={item.id} name={item.name} />
-          ))}
-        </SortableContext>
-      </DndContext>
+    <div className="p-4 bg-white shadow-md rounded-lg w-full">
+      <h1 className="text-lg text-yellow-300 font-bold">Monday.com File Drag & Drop</h1>
+      <p className="text-gray-600">Board: {context?.boardName || "Loading..."}</p>
+
+      <div className="grid grid-cols-2 gap-4 mt-4">
+        {/* Column 1: Uploaded Files */}
+        <div
+          className="p-4 bg-gray-100 rounded-md min-h-[200px]"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={() => handleDrop("Uploaded")}
+        >
+          <h2 className="text-md font-bold">Uploaded Files</h2>
+          {items
+            .filter((item) => !item.group || item.group === "Uploaded")
+            .map((item) =>
+              item.column_values
+                .filter((col) => col.id === "file_column_id" && col.value)
+                .map((file) => (
+                  <div
+                    key={file.id}
+                    draggable
+                    onDragStart={() =>
+                      handleDragStart({ itemId: item.id, fileName: file.text })
+                    }
+                    className="p-2 bg-white shadow-md rounded-md mt-2 cursor-pointer"
+                  >
+                    📄 {file.text}
+                  </div>
+                ))
+            )}
+        </div>
+
+        {/* Column 2: Processed Files */}
+        <div
+          className="p-4 bg-gray-200 rounded-md min-h-[200px]"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={() => handleDrop("Processed")}
+        >
+          <h2 className="text-md font-bold">Processed Files</h2>
+          {items
+            .filter((item) => item.group === "Processed")
+            .map((item) =>
+              item.column_values
+                .filter((col) => col.id === "file_column_id" && col.value)
+                .map((file) => (
+                  <div
+                    key={file.id}
+                    draggable
+                    onDragStart={() =>
+                      handleDragStart({ itemId: item.id, fileName: file.text })
+                    }
+                    className="p-2 bg-white shadow-md rounded-md mt-2 cursor-pointer"
+                  >
+                    📄 {file.text}
+                  </div>
+                ))
+            )}
+        </div>
+      </div>
     </div>
   );
-};
-
-export default DragDropWidget;
+}
