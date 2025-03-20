@@ -20,41 +20,41 @@ export default function Widget() {
   useEffect(() => {
     if (context?.boardId) {
       monday
-        .api(
-          `
+        .api(`
           query {
             boards(ids: ${context.boardId}) {
               id
               name
-              items_page {
-                items {
+              items {
+                id
+                name
+                pos  # Fetching the position of the item
+                column_values {
                   id
-                  name
-                  column_values {
-                    id
-                    text
-                    value
-                  }
+                  title
+                  text
+                  value
                 }
               }
             }
           }
-        `
-        )
+        `)
         .then((res) => {
-          console.log("Fetched board data:", res.data);
-          setItems(res.data.boards[0].items_page.items);
+          console.log("Fetched board data with positions:", res.data);
+          if (res.data?.boards?.length) {
+            setItems(res.data.boards[0].items);
+          }
         })
         .catch((err) => console.error("Error fetching board items:", err));
     }
   }, [context?.boardId]);
 
-  // Start Drag
+  // Drag Start
   const handleDragStart = (file, columnId, itemId) => {
     setDraggedFile({ file, columnId, itemId });
   };
 
-  // Drop into an existing column
+  // Drop Function
   const handleDrop = async (targetColumnId, itemId) => {
     if (!draggedFile || !context?.boardId) return;
 
@@ -72,17 +72,15 @@ export default function Widget() {
       }
     `);
 
-    // Update UI by moving the file
+    // Update UI
     setItems((prevItems) =>
       prevItems.map((item) =>
         item.id === itemId
           ? {
               ...item,
               column_values: item.column_values.map((col) =>
-                col.id === draggedFile.columnId
-                  ? { ...col, text: "" } // Remove from old column
-                  : col.id === targetColumnId
-                  ? { ...col, text: draggedFile.file } // Add to new column
+                col.id === targetColumnId
+                  ? { ...col, text: draggedFile.file }
                   : col
               ),
             }
@@ -93,14 +91,13 @@ export default function Widget() {
     setDraggedFile(null);
   };
 
+  // Sort items based on their position
+  const sortedItems = [...items].sort((a, b) => a.pos - b.pos);
+
   return (
     <div className="p-4 bg-white shadow-md rounded-lg w-full">
-      <h1 className="text-lg text-yellow-300 font-bold">
-        Monday.com Table Drag & Drop
-      </h1>
-      <p className="text-gray-600">
-        Board: {context?.boardName || "Loading..."}
-      </p>
+      <h1 className="text-lg text-yellow-300 font-bold">Monday.com Table Drag & Drop</h1>
+      <p className="text-gray-600">Board: {context?.boardName || "Loading..."}</p>
 
       <table className="min-w-full bg-white border mt-4">
         <thead>
@@ -111,7 +108,7 @@ export default function Widget() {
           </tr>
         </thead>
         <tbody>
-          {items.map((item) => (
+          {sortedItems.map((item) => (
             <tr key={item.id} className="border">
               <td className="border p-2">{item.name}</td>
 
@@ -122,23 +119,15 @@ export default function Widget() {
                 onDrop={() => handleDrop("column_a_id", item.id)}
               >
                 {item.column_values
-                  .filter(
-                    (col) => col.id === "column_a_id" && (col.text || col.value)
-                  )
-                  .map((file) => (
+                  .filter((col) => col.id === "column_a_id")
+                  .map((col) => (
                     <div
-                      key={file.id}
+                      key={col.id}
                       draggable
-                      onDragStart={() =>
-                        handleDragStart(
-                          file.text || file.value,
-                          "column_a_id",
-                          item.id
-                        )
-                      }
+                      onDragStart={() => handleDragStart(col.text, "column_a_id", item.id)}
                       className="p-2 bg-blue-100 shadow-md rounded-md cursor-pointer"
                     >
-                      📄 {file.text || file.value}
+                      📄 {col.text || "No File"}
                     </div>
                   ))}
               </td>
@@ -150,17 +139,15 @@ export default function Widget() {
                 onDrop={() => handleDrop("column_b_id", item.id)}
               >
                 {item.column_values
-                  .filter((col) => col.id === "column_b_id" && col.text)
-                  .map((file) => (
+                  .filter((col) => col.id === "column_b_id")
+                  .map((col) => (
                     <div
-                      key={file.id}
+                      key={col.id}
                       draggable
-                      onDragStart={() =>
-                        handleDragStart(file.text, "column_b_id", item.id)
-                      }
+                      onDragStart={() => handleDragStart(col.text, "column_b_id", item.id)}
                       className="p-2 bg-green-100 shadow-md rounded-md cursor-pointer"
                     >
-                      📄 {file.text}
+                      📄 {col.text || "No File"}
                     </div>
                   ))}
               </td>
