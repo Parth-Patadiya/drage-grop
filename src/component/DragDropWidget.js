@@ -20,30 +20,30 @@ export default function Widget() {
   useEffect(() => {
     if (context?.boardId) {
       monday
-        .api(`
-        query {
-          boards(ids: ${context.boardId}) {
-            id
-            name
-            items_page {
-              items {
-                id
-                name
-                column_values {
+        .api(
+          `
+          query {
+            boards(ids: ${context.boardId}) {
+              id
+              name
+              items_page {
+                items {
                   id
-                  text
+                  name
+                  column_values {
+                    id
+                    text
+                    value
+                  }
                 }
               }
             }
           }
-        }
-      `)
+        `
+        )
         .then((res) => {
           console.log("Fetched board data:", res.data);
-          if (res.data?.boards?.length) {
-            setContext((prev) => ({ ...prev, boardName: res.data.boards[0].name }));
-            setItems(res.data.boards[0].items_page.items);
-          }
+          setItems(res.data.boards[0].items_page.items);
         })
         .catch((err) => console.error("Error fetching board items:", err));
     }
@@ -95,8 +95,12 @@ export default function Widget() {
 
   return (
     <div className="p-4 bg-white shadow-md rounded-lg w-full">
-      <h1 className="text-lg text-yellow-300 font-bold">Monday.com Table Drag & Drop</h1>
-      <p className="text-gray-600">Board: {context?.boardName || "Loading..."}</p>
+      <h1 className="text-lg text-yellow-300 font-bold">
+        Monday.com Table Drag & Drop
+      </h1>
+      <p className="text-gray-600">
+        Board: {context?.boardName || "Loading..."}
+      </p>
 
       <table className="min-w-full bg-white border mt-4">
         <thead>
@@ -118,15 +122,23 @@ export default function Widget() {
                 onDrop={() => handleDrop("column_a_id", item.id)}
               >
                 {item.column_values
-                  .filter((col) => col.id === "column_a_id" && col.text)
+                  .filter(
+                    (col) => col.id === "column_a_id" && (col.text || col.value)
+                  )
                   .map((file) => (
                     <div
                       key={file.id}
                       draggable
-                      onDragStart={() => handleDragStart(file.text, "column_a_id", item.id)}
+                      onDragStart={() =>
+                        handleDragStart(
+                          file.text || file.value,
+                          "column_a_id",
+                          item.id
+                        )
+                      }
                       className="p-2 bg-blue-100 shadow-md rounded-md cursor-pointer"
                     >
-                      📄 {file.text}
+                      📄 {file.text || file.value}
                     </div>
                   ))}
               </td>
@@ -143,7 +155,9 @@ export default function Widget() {
                     <div
                       key={file.id}
                       draggable
-                      onDragStart={() => handleDragStart(file.text, "column_b_id", item.id)}
+                      onDragStart={() =>
+                        handleDragStart(file.text, "column_b_id", item.id)
+                      }
                       className="p-2 bg-green-100 shadow-md rounded-md cursor-pointer"
                     >
                       📄 {file.text}
