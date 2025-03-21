@@ -5,21 +5,26 @@ import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 
 const monday = mondaySdk();
 // Get current board ID
-let BOARD_ID ; // Replace with Board ID
-monday.api(`query { boards { id name } }`).then(res => {
-  console.log(res.data);
-  BOARD_ID = res.data;
-});
+
+
 const API_KEY = "eyJhbGciOiJIUzI1NiJ9.eyJ0aWQiOjQ4ODI0NTMzOCwiYWFpIjoxMSwidWlkIjo3MjIxMzc5OCwiaWFkIjoiMjAyNS0wMy0yMFQwOToyNDo0Ni4wMDBaIiwicGVyIjoibWU6d3JpdGUiLCJhY3RpZCI6MjgwMjU1NzcsInJnbiI6ImFwc2UyIn0.q25qnryaCWmlHdCeVSxjMq7tIOQnhC-v_6nDlkMKWTg"; // Replace with Monday API Key
 
 function App() {
   const [columns, setColumns] = useState([]);
+  const [boardId, setBoardId] = useState(null);
 
+  useEffect(() => {
+    monday.api(`query { boards { id name } }`).then(res => {
+      if (res.data && res.data.boards.length > 0) {
+        setBoardId(res.data.boards[0].id);
+      }
+    });
+  }, []);
   useEffect(() => {
     async function fetchColumns() {
       const query = `
       query {
-        boards(ids: [${BOARD_ID}]) {
+        boards(ids: [${boardId}]) {
           columns {
             id
             title
@@ -83,7 +88,7 @@ function App() {
     try {
       const mutation = `
       mutation {
-        change_column_value(board_id: ${BOARD_ID}, item_id: ${file.itemId}, column_id: "${destColumnId}", value: "{\\"files\\":[{\\"url\\":\\"${file.url}\\",\\"name\\":\\"${file.name}\\"}]}" ) {
+        change_column_value(board_id: ${boardId}, item_id: ${file.itemId}, column_id: "${destColumnId}", value: "{\\"files\\":[{\\"url\\":\\"${file.url}\\",\\"name\\":\\"${file.name}\\"}]}" ) {
           id
         }
       }`;
